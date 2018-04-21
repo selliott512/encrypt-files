@@ -16,38 +16,18 @@ IFS=$' \t\n'
 # Globals
 
 bname="${0##*/}"
-tmp_dir="/tmp/$bname.$$"
 
 conf_file="/etc/$bname.conf"
+files_file="/etc/$banme-files.conf"
+
+# Extra arguments for encrypt-files.
+efs_extra_args=""
 
 # Required and optional configuration parameters.
-config_req_ar=(user host key)
+config_req_ar=(localDir remoteDir user host sshKey)
 config_opt_ar=()
 
 # Functions
-
-function cleanup()
-{
-    # xxdebug need this?
-    if [[ -n $opt_keep ]]
-    then
-        echo "Keeping temporary directory \"$tmp_dir\"."
-        return
-    fi
-
-    if [[ -d $tmp_dir ]]
-    then
-        if [[ -f "$pass_file" ]]
-        then
-            shred -u "$pass_file"
-        fi
-        rm -f "$tmp_dir"/*
-        rmdir "$tmp_dir"
-    else
-        echo "Missing temporary directory \"$tmp_dir\"." 1>&2
-        exit 1
-    fi
-}
 
 function config_read()
 {
@@ -124,14 +104,8 @@ ${missing_ar[@]}" 1>&2
 
 function usage()
 {
-    echo "Usage: $bname  [-d] [-k] [-r] [-v] source dest" 1>&2
-    echo "    -d   Decrypt instead of encrypt." 1>&2
-    echo "    -k   Keep temporary files." 1>&2
-    echo "    -r   Relative paths (like rsync)." 1>&2
+    echo "Usage: $bname [-v]" 1>&2
     echo "    -v   Verbose." 1>&2
-    echo "    src  The source directory or file. Prefix with \"@\" for file \
-list." 1>&2
-    echo "    dst  The destination directory." 1>&2
 }
 
 # Main entry
@@ -144,22 +118,10 @@ fi
 
 # Parse command line options.
 
-unset opt_decrypt opt_keep opt_relative opt_update opt_verbose
-while getopts "dkruv" opt
+opt_verbose=""
+while getopts "v" opt
 do
     case $opt in
-        d)
-            opt_decrypt=t
-        ;;
-        k)
-            opt_keep=t
-        ;;
-        r)
-            opt_relative=t
-        ;;
-        u)
-            opt_update=t
-        ;;
         v)
             opt_verbose=t
         ;;
@@ -171,181 +133,29 @@ do
     esac
 done
 shift $((OPTIND - 1))
-src="$1"
-# Get rid of the tailing slash, if any.
-if [[ $src == */ ]]
-then
-    src="${src:0:-1}"
-fi
-
-dst="$2"
-# Get rid of the tailing slash, if any.
-if [[ $dst == */ ]]
-then
-    dst="${dst:0:-1}"
-fi
-
-if [[ (-n $opt_decrypt) && (-n $opt_relative) ]]
-then
-    echo "Options -d and -r are not compatible." 1>&2
-    exit 1
-fi
-
-if [[ $src == @* ]]
-then
-    # "src" is actually a list of source files each of which is a source top.
-    # In this case there is no prefix common to all source directories.
-    src_fname="${src:1}"
-    src_tops="$(<$src_fname)"
-    src_prefix_len=0
-else
-    # There is a single source top directory, which is a common prefix to all
-    # source directories found.
-    src_tops="$src"
-    src_prefix_len="${#src}"
-fi
-
-# Create a temporary directory
-if ! mkdir -m 700 "$tmp_dir"
-then
-    echo "Could not create temporary directory \"$tmp_dir\"." 2>&2
-    exit 1
-fi
-trap cleanup EXIT
 
 # Read the config file.
 config_read
 
-if [[ ${conf[pass]} == iO0p9ivpEiG64ssEwWDfEusJB2mmHXhBMBWXYGT4c52pG ]]
-then
-    echo "WARNING: You MUST CHANGE the default password in \"$conf_file\" in \
-order to be secure." 1>&2
-fi
-
 # Incremented for each error found.
 errors=0
 
-if ! find $src_tops > "$src_list_file"
+if [[ -n $opt_verbose ]]
 then
-    echo "One or more error finding \"$src_tops\"." 1>&2
-    let errors++
+    efs_extra_args="$efs_extra_args -v"
+    echo "efs @$files_file -> ${conf[localDir]}"
 fi
-
-if [[ -n $opt_decrypt ]]
+if ! encrypt-files -u $efs_extra_args @"$files_file" "${conf[localDir]}"
 then
-    action="dec"
-else
-    action="enc"
+    echo "Could not encrypt-files" 1>&2
+    exit 1
 fi
 
 if [[ -n $opt_verbose ]]
 then
-    echo "Action                : $action"
-    echo "Source tops           :" $src_tops
-    echo "Destination directory :" $dst
+    rsync_extra_args="$rsync_extra_args -v"
+    echo "rsn ${conf[localDir]} -> ${conf[remoetDir]}"
 fi
+rsync -a $rsync_extra_args "${conf[localDir]}" \
+    ${conf[user]}@${conf[host]}:${conf[remoteDir]}
 
-while read src_file
-do
-    if [[ $src_file != /* ]]
-    then
-        echo "Source file \"$src_file\" does not start with \"/\". \
-Ignoring." 1>&2
-        let errors++
-    fi
-
-    # Get rid of the tailing slash, if any.
-    if [[ $src_file == */ ]]
-    then
-        src_file="${src_file:0:-1}"
-    fi
-
-    if [[ -n $opt_relative ]]
-    then
-        # Remove leading slash.
-        src_file_rel="${src_file:1}"
-    else
-        # Remove the common source prefix and then +1 for the leading slash.
-        src_file_rel="${src_file:$src_prefix_len+1}"
-    fi
-
-    # Use the relative path of the file as part of the password.
-    # echo "${conf[pass]}|$src_file_rel" > "$pass_file"
-    echo "${conf[pass]}|$src_file_rel" > "$pass_file"
-
-    # Get rid of the tailing slash, if any.
-    dst_file="$dst/$src_file_rel"
-    if [[ $dst_file == */ ]]
-    then
-        dst_file="${dst_file:0:-1}"
-    fi
-
-    if [[ -d $src_file ]]
-    then
-        if [[ -n $opt_verbose ]]
-        then
-            echo "dir \"$dst_file\""
-        fi
-        if ! mkdir -p "$dst_file"
-        then
-            echo "Could not make directory \"$dst_dir\"." 1>&2
-            let errors++
-        fi
-    elif [[ -f $src_file ]]
-    then
-        src_base="${src_file##*/}"
-        if [[ (-n $opt_update) && !($src_file -nt $dst_file) ]]
-        then
-            if [[ -n $opt_verbose ]]
-            then
-                echo "old \"$src_file\""
-            fi
-            continue
-        fi
-        if [[ -n $opt_verbose ]]
-        then
-            echo "$action \"$src_file\" -> \"$dst_file\""
-        fi
-        if [[ -n $opt_decrypt ]]
-        then
-            if ! openssl aes-256-cbc -d -nosalt -pass file:"$pass_file" \
-                -in "$src_file" -out "$dst_file"
-            then
-                echo "Could not decrypt \"$src_file\" to \"$dst_file\"." 1>&2
-                let errors++
-            fi
-            tail -c 32 "$dst_file" > "$hash_expected_file"
-            truncate -cs -32 "$dst_file"
-            openssl dgst -sha256 -binary -out "$hash_actual_file" "$dst_file"
-            if ! diff -q "$hash_actual_file" "$hash_expected_file" &> /dev/null
-            then
-                echo "For \"$dst_file\" the hash did not match." 1>&2
-                let errors++
-            fi
-        else
-            openssl dgst -sha256 -binary -out "$hash_actual_file" "$src_file"
-            if ! cat "$src_file" "$hash_actual_file" | openssl aes-256-cbc -nosalt \
-                -pass file:"$pass_file" -out "$dst_file"
-            then
-                echo "Could not encrypt \"$src_file\" to \"$dst_file\"." 1>&2
-                let errors++
-            fi
-        fi
-    else
-        echo "Source file \"$src_file\" is not a file or directory. \
-Ignoring." 1>&2
-        let errors++
-    fi
-done < "$src_list_file"
-
-if [[ $errors -gt 0 ]]
-then
-    echo "$errors errors."
-    exit 1
-else
-    if [[ -n $opt_verbose ]]
-    then
-      echo "Success."
-    fi
-    exit 0
-fi
