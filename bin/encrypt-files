@@ -29,6 +29,14 @@ src_list_file="$tmp_dir/src-files"
 config_req_ar=(pass)
 config_opt_ar=()
 
+# The encryption algorithm to use.
+# TODO: Consider different algorithms for different files. For example, for
+# large files that have small changes "aes-256-ofb" would be more efficient
+# because only bits modified in the source would be modified in the
+# destination. However, an attacker would be able to gain more insight into the
+# files by XORing multiple versions of the encrypted file.
+crypto_alg="aes-256-cbc"
+
 # Functions
 
 function cleanup()
@@ -312,7 +320,7 @@ Ignoring." 1>&2
         fi
         if [[ -n $opt_decrypt ]]
         then
-            if ! openssl aes-256-cbc -d -nosalt -pass file:"$pass_file" \
+            if ! openssl "$crypto_alg" -d -nosalt -pass file:"$pass_file" \
                 -in "$src_file" -out "$dst_file"
             then
                 echo "Could not decrypt \"$src_file\" to \"$dst_file\"." 1>&2
@@ -328,7 +336,7 @@ Ignoring." 1>&2
             fi
         else
             openssl dgst -sha256 -binary -out "$hash_actual_file" "$src_file"
-            if ! cat "$src_file" "$hash_actual_file" | openssl aes-256-cbc -nosalt \
+            if ! cat "$src_file" "$hash_actual_file" | openssl "$crypto_alg" -nosalt \
                 -pass file:"$pass_file" -out "$dst_file"
             then
                 echo "Could not encrypt \"$src_file\" to \"$dst_file\"." 1>&2
