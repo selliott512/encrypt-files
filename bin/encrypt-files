@@ -357,12 +357,7 @@ Ignoring." 1>&2
             # Decrypt
             hdr=$(head -c 32 "$src_file")
             read -ra hdr_ar <<< "$hdr"
-
-            for (( i=0; i<= ${#hdr_ar[@]}; i++ ))
-            do
-                echo "xxdebug header #" + i + ": |${hdr_ar[0]}| for \"$src_file\""
-            done
-
+        
             # The first two tokens should be fixed.
             if [[ ${#hdr_ar[@]} -lt 2 ]]
             then
@@ -404,9 +399,10 @@ source file \"$src_file\"." 1>&2
             done
 
             if ! tail -c +33 "$src_file" | openssl "$calg" -d \
-                "${do_nosalt:+-nosalt}" -pass file:"$pass_file" -out "$dst_file"
+                ${do_nosalt:+-nosalt} -pass file:"$pass_file" -out "$dst_file"
             then
                 echo "Could not decrypt \"$src_file\" to \"$dst_file\"." 1>&2
+                rm -f "$dst_file"
                 let errors++
                 continue
             fi
@@ -426,6 +422,7 @@ source file \"$src_file\"." 1>&2
                 -pass file:"$pass_file" >> "$dst_file"
             then
                 echo "Could not encrypt \"$src_file\" to \"$dst_file\"." 1>&2
+                rm -f "$dst_file"
                 let errors++
             fi
         fi
