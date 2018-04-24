@@ -27,19 +27,11 @@ pass_file="$tmp_dir/pass"
 src_list_file="$tmp_dir/src-files"
 
 # Required and optional configuration parameters.
-config_req_ar=(pass)
-config_opt_ar=()
+config_req_ar=(pass algDefault algLow)
+config_opt_ar=(lowFiles noSalt)
 
 # Used to parse command line options.
 opt_getopts="dkruv"
-
-# The encryption algorithm to use.
-# TODO: Consider different algorithms for different files. For example, for
-# large files that have small changes "aes-256-ofb" would be more efficient
-# because only bits modified in the source would be modified in the
-# destination. However, an attacker would be able to gain more insight into the
-# files by XORing multiple versions of the encrypted file.
-crypto_alg="aes-256-cbc"
 
 # Functions
 
@@ -349,9 +341,6 @@ Ignoring." 1>&2
             echo "$action \"$src_file\" -> \"$dst_file\""
         fi
 
-        # xxdebug figure it out
-        no_salt=t
-
         if [[ -n ${opt[d]} ]]
         then
             # Decrypt
@@ -416,10 +405,22 @@ source file \"$src_file\"." 1>&2
             fi
         else
             # Encrypt
-            printf "%-31s\n" "efs 1 $crypto_alg ${no_salt+ns}" > "$dst_file"
+            alg="${conf[algDefault]}"
+            if [[ -n ${conf[lowFiles]} ]]
+            then
+                for lowFile in ${conf[lowFiles]}
+                do
+                    if [[ $src_file_rel == $lowFile ]]
+                    then
+                        alg="${conf[algLow]}"
+                    fi
+                done
+            fi
+            printf "%-31s\n" "efs 1 $alg ${conf[noSalt]:+ns}" > \
+                "$dst_file"
             openssl dgst -sha256 -binary -out "$hash_actual_file" "$src_file"
-            if ! cat "$src_file" "$hash_actual_file" | openssl "$crypto_alg" -nosalt \
-                -pass file:"$pass_file" >> "$dst_file"
+            if ! cat "$src_file" "$hash_actual_file" | openssl "$alg" \
+                ${conf[noSalt]:+-nosalt} -pass file:"$pass_file" >> "$dst_file"
             then
                 echo "Could not encrypt \"$src_file\" to \"$dst_file\"." 1>&2
                 rm -f "$dst_file"
