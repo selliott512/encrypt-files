@@ -22,6 +22,7 @@ conf_file="/etc/$bname.conf"
 hash_file="$tmp_dir/hash"
 hash_actual_file="$tmp_dir/hash-actual"
 hash_expected_file="$tmp_dir/hash-expected"
+hdr_file="$tmp_dir/hash"
 pass_file="$tmp_dir/pass"
 src_list_file="$tmp_dir/src-files"
 
@@ -347,13 +348,67 @@ Ignoring." 1>&2
         then
             echo "$action \"$src_file\" -> \"$dst_file\""
         fi
+
+        # xxdebug figure it out
+        no_salt=t
+
         if [[ -n ${opt[d]} ]]
         then
-            if ! openssl "$crypto_alg" -d -nosalt -pass file:"$pass_file" \
-                -in "$src_file" -out "$dst_file"
+            # Decrypt
+            hdr=$(head -c 32 "$src_file")
+            read -ra hdr_ar <<< "$hdr"
+
+            for (( i=0; i<= ${#hdr_ar[@]}; i++ ))
+            do
+                echo "xxdebug header #" + i + ": |${hdr_ar[0]}| for \"$src_file\""
+            done
+
+            # The first two tokens should be fixed.
+            if [[ ${#hdr_ar[@]} -lt 2 ]]
+            then
+                echo "Invalid header \"$hdr\" for source file \
+\"$src_file\"." 1>&2
+                let errors++
+                continue
+            fi
+            if [[ ${hdr_ar[0]} != efs ]]
+            then
+                echo "Unknown file type \"${hdr_ar[0]}\" in header \"$hdr\" \
+for source file \"$src_file\"." 1>&2
+                let errors++
+                continue
+            fi
+            if [[ ${hdr_ar[1]} != 1 ]]
+            then
+                echo "Unknown version \"${hdr_ar[1]}\" in header \"$hdr\" for \
+source file \"$src_file\"." 1>&2
+                let errors++
+                continue
+            fi
+            calg="${hdr_ar[2]}"
+
+            # Process the header options.
+            do_nosalt=""
+            for (( i=3; i<${#hdr_ar[@]}; i++ ))
+            do
+                hopt="${hdr_ar[i]}"
+                case "$hopt" in
+                    ns)
+                        do_nosalt="t"
+                        ;;
+                    *)
+                        echo "Unknown header option \"$hopt\". Ignoring." 1>&2
+                        let errors++
+                        ;;
+                esac
+            done
+
+            if ! tail -c +33 "$src_file" | openssl "$calg" -d \
+                "${do_nosalt:+-nosalt}" -pass file:"$pass_file" -out "$dst_file"
             then
                 echo "Could not decrypt \"$src_file\" to \"$dst_file\"." 1>&2
                 let errors++
+                continue
             fi
             tail -c 32 "$dst_file" > "$hash_expected_file"
             truncate -cs -32 "$dst_file"
@@ -364,9 +419,11 @@ Ignoring." 1>&2
                 let errors++
             fi
         else
+            # Encrypt
+            printf "%-31s\n" "efs 1 $crypto_alg ${no_salt+ns}" > "$dst_file"
             openssl dgst -sha256 -binary -out "$hash_actual_file" "$src_file"
             if ! cat "$src_file" "$hash_actual_file" | openssl "$crypto_alg" -nosalt \
-                -pass file:"$pass_file" -out "$dst_file"
+                -pass file:"$pass_file" >> "$dst_file"
             then
                 echo "Could not encrypt \"$src_file\" to \"$dst_file\"." 1>&2
                 let errors++
