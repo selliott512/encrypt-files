@@ -138,18 +138,6 @@ ${missing_ar[@]}" 1>&2
     fi
 }
 
-function usage()
-{
-    echo "Usage: $bname  [-d] [-k] [-r] [-v] source dest" 1>&2
-    echo "    -d   Decrypt instead of encrypt." 1>&2
-    echo "    -k   Keep temporary files." 1>&2
-    echo "    -r   Relative paths (like rsync)." 1>&2
-    echo "    -v   Verbose." 1>&2
-    echo "    src  The source directory or file. Prefix with \"@\" for file \
-list." 1>&2
-    echo "    dst  The destination directory." 1>&2
-}
-
 # Parse command line options.
 function opt_parse()
 {
@@ -197,6 +185,18 @@ a row." 1>&2
             fi
         fi
     done
+}
+
+function usage()
+{
+    echo "Usage: $bname  [-d] [-k] [-r] [-v] source dest" 1>&2
+    echo "    -d   Decrypt instead of encrypt." 1>&2
+    echo "    -k   Keep temporary files." 1>&2
+    echo "    -r   Relative paths (like rsync)." 1>&2
+    echo "    -v   Verbose." 1>&2
+    echo "    src  The source directory or file. Prefix with \"@\" for file \
+list." 1>&2
+    echo "    dst  The destination directory." 1>&2
 }
 
 # Main entry
