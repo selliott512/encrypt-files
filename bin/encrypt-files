@@ -11,7 +11,6 @@ if [[ $(( 10*${BASH_VERSINFO[0]} + ${BASH_VERSINFO[1]} )) -ge 44 ]]
 then
     set -u
 fi
-IFS=$' \t\n'
 
 # Globals
 
