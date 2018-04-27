@@ -1,7 +1,12 @@
 #!/bin/bash
 
+# encrypt-files ver 0.1
+#   by Steven Elliott <selliott512@gmail.com>
+#   https://github.com/selliott512/encrypt-files.git
+#
 # Encrypt files one at time using a combination of a secret password and the
-# file's relative path as the password.
+# file's relative path as the password. Requires the "openssl" CLI.
+#
 
 # Semi-strict mode.
 
@@ -30,7 +35,7 @@ config_req_ar=(pass algDefault algLow)
 config_opt_ar=(lowFiles noSalt)
 
 # Used to parse command line options.
-opt_getopts="dkruv"
+opt_getopts="dhkruv"
 
 # Functions
 
@@ -38,7 +43,10 @@ function cleanup()
 {
     if [[ -n ${opt[k]} ]]
     then
-        echo "Keeping temporary directory \"$tmp_dir\"."
+        if [[ -n ${opt[v]} ]]
+        then
+            echo "Keeping temporary directory \"$tmp_dir\"."
+        fi
         return
     fi
 
@@ -48,6 +56,7 @@ function cleanup()
         then
             shred -u "$pass_file"
         fi
+        # A bit safer than "rm -rf"
         rm -f "$tmp_dir"/*
         rmdir "$tmp_dir"
     else
@@ -56,7 +65,7 @@ function cleanup()
     fi
 }
 
-# Read the configuraiton file $conf_file.
+# Read the configuration file $conf_file.
 function config_read()
 {
     if [[ ! -r $conf_file ]]
@@ -98,6 +107,7 @@ not readable." 1>&2
             # A comment or blank line.
             continue
         fi
+        # Allow for camel case keys, such as "myKey".
         key=$(tr -dc "[0-9A-Za-z]" <<< "$key")
 
         value="${line#*=}"
@@ -119,7 +129,7 @@ allowed." 1>&2
     do
         if [[ -z ${conf[$key]} ]]
         then
-            missing_ar+=($key)
+            missing_ar+=("$key")
         fi
     done
     if [[ -n $missing_ar ]]
@@ -135,13 +145,13 @@ function opt_parse()
 {
     if [[ $opt_getopts == :* ]]
     then
-        echo "\$opt_getots\"=$opt_getopts should not start with \":\"." 1>&2
+        echo "\$opt_getots=\"$opt_getopts\" should not start with \":\"." 1>&2
         exit 1
     fi
 
     if [[ $opt_getopts == *::* ]]
     then
-        echo "\$opt_getots\"=$opt_getopts should have more than one \":\" in \
+        echo "\$opt_getots=\"$opt_getopts\" should have more than one \":\" in \
 a row." 1>&2
         exit 1
     fi
@@ -177,18 +187,26 @@ a row." 1>&2
             fi
         fi
     done
+
+    if [[ -n ${opt[h]} ]]
+    then
+        # Here since it probably applies to any command line options.
+        usage
+        exit 0
+    fi
 }
 
 function usage()
 {
-    echo "Usage: $bname  [-d] [-k] [-r] [-v] source dest" 1>&2
-    echo "    -d   Decrypt instead of encrypt." 1>&2
-    echo "    -k   Keep temporary files." 1>&2
-    echo "    -r   Relative paths (like rsync)." 1>&2
-    echo "    -v   Verbose." 1>&2
+    echo "Usage: $bname  [-d] [-h] [-k] [-r] [-v] source dest"
+    echo "    -d   Decrypt instead of encrypt."
+    echo "    -h   This help message."
+    echo "    -k   Keep temporary files."
+    echo "    -r   Relative paths (like rsync)."
+    echo "    -v   Verbose."
     echo "    src  The source directory or file. Prefix with \"@\" for file \
-list." 1>&2
-    echo "    dst  The destination directory." 1>&2
+list."
+    echo "    dst  The destination directory."
 }
 
 # Main entry
@@ -209,6 +227,7 @@ shift $((OPTIND - 1))
 
 if [[ $# -lt 2 ]]
 then
+    exec 1>&2
     usage
     exit 1
 fi
@@ -303,7 +322,6 @@ Ignoring." 1>&2
     fi
 
     # Use the relative path of the file as part of the password.
-    # echo "${conf[pass]}|$src_file_rel" > "$pass_file"
     echo "${conf[pass]}|$src_file_rel" > "$pass_file"
 
     # Get rid of the tailing slash, if any.
@@ -435,7 +453,7 @@ done < "$src_list_file"
 
 if [[ $errors -gt 0 ]]
 then
-    echo "$errors errors."
+    echo "$errors errors." 1>&2
     exit 1
 else
     if [[ -n ${opt[v]} ]]
