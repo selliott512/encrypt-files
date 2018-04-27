@@ -12,7 +12,7 @@
 
 set -eo pipefail
 # For bash 4.3 and earlier empty arrays fail with "set -u".
-if [[ $(( 10*${BASH_VERSINFO[0]} + ${BASH_VERSINFO[1]} )) -ge 44 ]]
+if [[ $(( 10*BASH_VERSINFO[0] + BASH_VERSINFO[1] )) -ge 44 ]]
 then
     set -u
 fi
@@ -23,10 +23,8 @@ bname="${0##*/}"
 tmp_dir="/tmp/$bname.$$"
 
 conf_file="/etc/$bname.conf"
-hash_file="$tmp_dir/hash"
 hash_actual_file="$tmp_dir/hash-actual"
 hash_expected_file="$tmp_dir/hash-expected"
-hdr_file="$tmp_dir/hash"
 pass_file="$tmp_dir/pass"
 src_list_file="$tmp_dir/src-files"
 
@@ -97,7 +95,7 @@ not readable." 1>&2
     declare -gA conf
 
     # Read the config file.
-    while read line
+    while read -r line
     do
         key="${line%%=*}"
         key="${key#"${key%%[![:space:]]*}"}" # Leading whitespace.
@@ -108,7 +106,7 @@ not readable." 1>&2
             continue
         fi
         # Allow for camel case keys, such as "myKey".
-        key=$(tr -dc "[0-9A-Za-z]" <<< "$key")
+        key=$(tr -dc "0-9A-Za-z" <<< "$key")
 
         value="${line#*=}"
         value="${value#"${value%%[![:space:]]*}"}" # Leading whitespace.
@@ -132,10 +130,10 @@ allowed." 1>&2
             missing_ar+=("$key")
         fi
     done
-    if [[ -n $missing_ar ]]
+    if [[ ${#missing_ar[@]} -gt 0 ]]
     then
         echo "Configuration file \"$conf_file\" is missing required keys: \
-${missing_ar[@]}" 1>&2
+${missing_ar[*]}" 1>&2
         exit 1
     fi
 }
@@ -257,7 +255,7 @@ then
     # "src" is actually a list of source files each of which is a source top.
     # In this case there is no prefix common to all source directories.
     src_fname="${src:1}"
-    src_tops="$(<$src_fname)"
+    src_tops="$(<"$src_fname")"
     src_prefix_len=0
 else
     # There is a single source top directory, which is a common prefix to all
@@ -277,6 +275,8 @@ trap cleanup EXIT
 # Incremented for each error found.
 errors=0
 
+# Hopefully no source top has a space.
+# shellcheck disable=SC2086
 if ! find $src_tops > "$src_list_file"
 then
     echo "One or more error finding \"$src_tops\"." 1>&2
@@ -293,11 +293,11 @@ fi
 if [[ -n ${opt[v]} ]]
 then
     echo "Action                : $action"
-    echo "Source tops           :" $src_tops
-    echo "Destination directory :" $dst
+    echo "Source tops           : $src_tops"
+    echo "Destination directory : $dst"
 fi
 
-while read src_file
+while read -r src_file
 do
     if [[ $src_file != /* ]]
     then
@@ -339,13 +339,12 @@ Ignoring." 1>&2
         fi
         if ! mkdir -p "$dst_file"
         then
-            echo "Could not make directory \"$dst_dir\"." 1>&2
+            echo "Could not make directory \"$dst_file\"." 1>&2
             let errors++
         fi
     elif [[ -f $src_file ]]
     then
-        src_base="${src_file##*/}"
-        if [[ (-n ${opt[u]}) && !($src_file -nt $dst_file) ]]
+        if [[ (-n ${opt[u]}) && ! ($src_file -nt $dst_file) ]]
         then
             if [[ -n ${opt[v]} ]]
             then
@@ -425,9 +424,11 @@ source file \"$src_file\"." 1>&2
             alg="${conf[algDefault]}"
             if [[ -n ${conf[lowFiles]} ]]
             then
-                for lowFile in ${conf[lowFiles]}
+                for low_file in ${conf[lowFiles]}
                 do
-                    if [[ $src_file_rel == $lowFile ]]
+                    # $low_file actually does have wild cards to be matched.
+                    # shellcheck disable=SC2053
+                    if [[ $src_file_rel == $low_file ]]
                     then
                         alg="${conf[algLow]}"
                     fi
