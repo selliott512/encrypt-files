@@ -254,13 +254,12 @@ if [[ $src == @* ]]
 then
     # "src" is actually a list of source files each of which is a source top.
     # In this case there is no prefix common to all source directories.
-    src_fname="${src:1}"
-    src_tops="$(<"$src_fname")"
+    mapfile -t src_tops_ar < "${src:1}"
     src_prefix_len=0
 else
     # There is a single source top directory, which is a common prefix to all
     # source directories found.
-    src_tops="$src"
+    src_tops_ar=("$src")
     src_prefix_len="${#src}"
 fi
 
@@ -275,11 +274,9 @@ trap cleanup EXIT
 # Incremented for each error found.
 errors=0
 
-# Hopefully no source top has a space.
-# shellcheck disable=SC2086
-if ! find $src_tops > "$src_list_file"
+if ! find "${src_tops_ar[@]}" > "$src_list_file"
 then
-    echo "One or more error finding \"$src_tops\"." 1>&2
+    echo "One or more error finding \"${src_tops_ar[*]}\"." 1>&2
     let errors++
 fi
 
@@ -293,7 +290,7 @@ fi
 if [[ -n ${opt[v]} ]]
 then
     echo "Action                : $action"
-    echo "Source tops           : $src_tops"
+    echo "Source tops           : ${src_tops_ar[*]}"
     echo "Destination directory : $dst"
 fi
 
