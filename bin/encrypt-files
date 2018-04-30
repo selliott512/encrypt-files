@@ -105,8 +105,9 @@ not readable." 1>&2
             # A comment or blank line.
             continue
         fi
-        # Allow for camel case keys, such as "myKey".
-        key=$(tr -dc "0-9A-Za-z" <<< "$key")
+        # Allow for camel case keys, such as "myKey" or underscore usch as
+        # "my_key".
+        key=$(tr -dc "0-9A-Z_a-z" <<< "$key")
 
         value="${line#*=}"
         value="${value#"${value%%[![:space:]]*}"}" # Leading whitespace.
@@ -136,6 +137,9 @@ allowed." 1>&2
 ${missing_ar[*]}" 1>&2
         exit 1
     fi
+
+    # -g is needed even though it's already global.
+    declare -gr conf
 }
 
 # Parse command line options.
@@ -155,6 +159,7 @@ a row." 1>&2
     fi
 
     # The global option array.
+    unset opt
     declare -gA opt
 
     # Make sure all possible options are set so $opt can be referenced.
@@ -192,6 +197,9 @@ a row." 1>&2
         usage
         exit 0
     fi
+
+    # -g is needed even though it's already global.
+    declare -gr opt
 }
 
 function usage()
