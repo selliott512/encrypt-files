@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# encrypt-files ver 0.1
+#   by Steven Elliott <selliott512@gmail.com>
+#   https://github.com/selliott512/encrypt-files.git
+#
 # A cron job wrapper for encrypt-files that sends the encrypted files to a
 # remote system.
 
@@ -7,29 +11,32 @@
 
 set -eo pipefail
 # For bash 4.3 and earlier empty arrays fail with "set -u".
-if [[ $(( 10*${BASH_VERSINFO[0]} + ${BASH_VERSINFO[1]} )) -ge 44 ]]
+if [[ $(( 10*BASH_VERSINFO[0] + BASH_VERSINFO[1] )) -ge 44 ]]
 then
     set -u
 fi
-IFS=$' \t\n'
 
 # Globals
 
 bname="${0##*/}"
 
-conf_file="/etc/$bname.conf"
-files_file="/etc/$banme-files.conf"
+files_file="/etc/$bname-files.conf"
 
 # Extra arguments for encrypt-files.
 efs_extra_args=""
 
-# Required and optional configuration parameters.
+# Configuration file name, required and optional keys.
+conf_file="/etc/$bname.conf"
 config_req_ar=(localDir remoteDir user host sshKey)
 config_opt_ar=()
 
+# Command line options.
+opt_getopts="dhkruv"
+
 # Functions
 
-function config_read()
+# Read the configuration file $conf_file.
+function conf_read()
 {
     if [[ ! -r $conf_file ]]
     then
@@ -43,14 +50,14 @@ not readable." 1>&2
 
     unset req_as
     declare -A req_as
-    for key in "${config_req_ar[@]}"
+    for key in "${conf_req_ar[@]}"
     do
         req_as[$key]=t
     done
 
     unset opt_as
     declare -A opt_as
-    for key in "${config_opt_ar[@]}"
+    for key in "${conf_opt_ar[@]}"
     do
         opt_as[$key]=t
     done
@@ -59,8 +66,8 @@ not readable." 1>&2
     unset conf
     declare -gA conf
 
-    # Read the config file.
-    while read line
+    # Read the configuration file.
+    while read -r line
     do
         key="${line%%=*}"
         key="${key#"${key%%[![:space:]]*}"}" # Leading whitespace.
@@ -70,7 +77,15 @@ not readable." 1>&2
             # A comment or blank line.
             continue
         fi
-        key=$(tr -dc "[0-9A-Za-z]" <<< "$key")
+        # Allow for camel case keys, such as "myKey" or underscore such as
+        # "my_key".
+        key_forbidden=$(tr -d "0-9A-Z_a-z" <<< "$key")
+        if [[ -n $key_forbidden ]]
+        then
+            echo "Key \"$key\" in configuration file \"$conf_file\" contains \
+forbidden characters \"$key_forbidden\"." 1>&2
+            exit 1
+        fi
 
         value="${line#*=}"
         value="${value#"${value%%[![:space:]]*}"}" # Leading whitespace.
@@ -91,56 +106,102 @@ allowed." 1>&2
     do
         if [[ -z ${conf[$key]} ]]
         then
-            missing_ar+=($key)
+            missing_ar+=("$key")
         fi
     done
-    if [[ -n $missing_ar ]]
+    if [[ ${#missing_ar[@]} -gt 0 ]]
     then
         echo "Configuration file \"$conf_file\" is missing required keys: \
-${missing_ar[@]}" 1>&2
+${missing_ar[*]}" 1>&2
         exit 1
     fi
+
+    # Read-only. -g is needed even though it's already global.
+    declare -gr conf
+}
+
+# Parse command line options.
+function opt_parse()
+{
+    if [[ $opt_getopts == :* ]]
+    then
+        echo "\$opt_getots=\"$opt_getopts\" should not start with \":\"." 1>&2
+        exit 1
+    fi
+
+    if [[ $opt_getopts == *::* ]]
+    then
+        echo "\$opt_getots=\"$opt_getopts\" should have more than one \":\" in \
+a row." 1>&2
+        exit 1
+    fi
+
+    # The global option array.
+    unset opt
+    declare -gA opt
+
+    # Make sure all possible options are set so $opt can be referenced.
+    for (( i=0; i<${#opt_getopts}; i++ ))
+    do
+        o="${opt_getopts:$i:1}"
+        if [[ $o == : ]]
+        then
+            continue
+        fi
+        opt["$o"]=""
+    done
+
+    while getopts "$opt_getopts" o
+    do
+        if [[ $o == "?" ]]
+        then
+            # An option that's not in $opt_getopts.
+            exec 1>&2
+            usage
+            exit 1
+        else
+            if [[ -v OPTARG ]]
+            then
+                opt["$o"]="$OPTARG"
+            else
+                opt["$o"]=t
+            fi
+        fi
+    done
+
+    if [[ -n ${opt[h]} ]]
+    then
+        # Here since it probably applies to any command line options.
+        usage
+        exit 0
+    fi
+
+    # Read-only. -g is needed even though it's already global.
+    declare -gr opt
 }
 
 function usage()
 {
-    echo "Usage: $bname [-v]" 1>&2
-    echo "    -v   Verbose." 1>&2
+    echo "Usage: $bname [-v]"
+    echo "    -v   Verbose."
 }
 
 # Main entry
 
 if [[ $# -lt 1 ]]
 then
+    exec 1>&2
     usage
     exit 1
 fi
 
-# Parse command line options.
-
-opt_verbose=""
-while getopts "v" opt
-do
-    case $opt in
-        v)
-            opt_verbose=t
-        ;;
-        ?)
-            exec 1>&2
-            usage
-            exit 1
-        ;;
-    esac
-done
-shift $((OPTIND - 1))
-
 # Read the config file.
 config_read
 
-# Incremented for each error found.
-errors=0
+# Parse command line options.
+opt_parse "$@"
 
-if [[ -n $opt_verbose ]]
+if [[ -n ${opt[v]} ]]
 then
     efs_extra_args="$efs_extra_args -v"
     echo "efs @$files_file -> ${conf[localDir]}"
@@ -151,11 +212,11 @@ then
     exit 1
 fi
 
-if [[ -n $opt_verbose ]]
+if [[ -n ${opt[v]} ]]
 then
     rsync_extra_args="$rsync_extra_args -v"
-    echo "rsn ${conf[localDir]} -> ${conf[remoetDir]}"
+    echo "rsn ${conf[localDir]} -> ${conf[remoteDir]}"
 fi
-rsync -a $rsync_extra_args "${conf[localDir]}" \
+echo rsync -a --delete $rsync_extra_args "${conf[localDir]}" \
     ${conf[user]}@${conf[host]}:${conf[remoteDir]}
 
