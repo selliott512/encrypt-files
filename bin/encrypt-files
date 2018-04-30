@@ -22,6 +22,7 @@ fi
 bname="${0##*/}"
 tmp_dir="/tmp/$bname.$$"
 
+# File names of files in $tmp_dir
 hash_actual_file="$tmp_dir/hash-actual"
 hash_expected_file="$tmp_dir/hash-expected"
 pass_file="$tmp_dir/pass"
@@ -32,7 +33,7 @@ conf_file="/etc/$bname.conf"
 conf_req_ar=(pass algDefault algLow)
 conf_opt_ar=(lowFiles noSalt)
 
-# Used to parse command line options.
+# Command line options.
 opt_getopts="dhkruv"
 
 # Functions
@@ -105,7 +106,7 @@ not readable." 1>&2
             # A comment or blank line.
             continue
         fi
-        # Allow for camel case keys, such as "myKey" or underscore usch as
+        # Allow for camel case keys, such as "myKey" or underscore such as
         # "my_key".
         key_forbidden=$(tr -d "0-9A-Z_a-z" <<< "$key")
         if [[ -n $key_forbidden ]]
@@ -144,7 +145,7 @@ ${missing_ar[*]}" 1>&2
         exit 1
     fi
 
-    # -g is needed even though it's already global.
+    # Read-only. -g is needed even though it's already global.
     declare -gr conf
 }
 
@@ -204,7 +205,7 @@ a row." 1>&2
         exit 0
     fi
 
-    # -g is needed even though it's already global.
+    # Read-only. -g is needed even though it's already global.
     declare -gr opt
 }
 
