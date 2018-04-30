@@ -233,6 +233,7 @@ then
 order to be secure." 1>&2
 fi
 
+# Parse command line options.
 opt_parse "$@"
 
 # So that only positional arguments, if any, remain.
