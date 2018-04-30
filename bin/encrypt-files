@@ -22,15 +22,15 @@ fi
 bname="${0##*/}"
 tmp_dir="/tmp/$bname.$$"
 
-conf_file="/etc/$bname.conf"
 hash_actual_file="$tmp_dir/hash-actual"
 hash_expected_file="$tmp_dir/hash-expected"
 pass_file="$tmp_dir/pass"
 src_list_file="$tmp_dir/src-files"
 
-# Required and optional configuration parameters.
-config_req_ar=(pass algDefault algLow)
-config_opt_ar=(lowFiles noSalt)
+# Configuration file name, required and optional keys.
+conf_file="/etc/$bname.conf"
+conf_req_ar=(pass algDefault algLow)
+conf_opt_ar=(lowFiles noSalt)
 
 # Used to parse command line options.
 opt_getopts="dhkruv"
@@ -64,7 +64,7 @@ function cleanup()
 }
 
 # Read the configuration file $conf_file.
-function config_read()
+function conf_read()
 {
     if [[ ! -r $conf_file ]]
     then
@@ -78,14 +78,14 @@ not readable." 1>&2
 
     unset req_as
     declare -A req_as
-    for key in "${config_req_ar[@]}"
+    for key in "${conf_req_ar[@]}"
     do
         req_as[$key]=t
     done
 
     unset opt_as
     declare -A opt_as
-    for key in "${config_opt_ar[@]}"
+    for key in "${conf_opt_ar[@]}"
     do
         opt_as[$key]=t
     done
@@ -94,7 +94,7 @@ not readable." 1>&2
     unset conf
     declare -gA conf
 
-    # Read the config file.
+    # Read the configuration file.
     while read -r line
     do
         key="${line%%=*}"
@@ -223,8 +223,8 @@ list."
 
 # Main entry
 
-# Read the config file.
-config_read
+# Read the configuration file.
+conf_read
 
 if [[ ${conf[pass]} == iO0p9ivpEiG64ssEwWDfEusJB2mmHXhBMBWXYGT4c52pG ]]
 then
