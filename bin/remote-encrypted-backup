@@ -27,8 +27,8 @@ efs_extra_args=""
 
 # Configuration file name, required and optional keys.
 conf_file="/etc/$bname.conf"
-config_req_ar=(localDir remoteDir user host sshKey)
-config_opt_ar=()
+conf_req_ar=(localDir remoteDir user host sshKey)
+conf_opt_ar=()
 
 # Command line options.
 opt_getopts="dhkruv"
@@ -188,15 +188,8 @@ function usage()
 
 # Main entry
 
-if [[ $# -lt 1 ]]
-then
-    exec 1>&2
-    usage
-    exit 1
-fi
-
 # Read the config file.
-config_read
+conf_read
 
 # Parse command line options.
 opt_parse "$@"
@@ -212,11 +205,15 @@ then
     exit 1
 fi
 
+# The remote directory with the current host added to it.
+remote_dir_host=${conf[remoteDir]}/"$HOSTNAME"
+
 if [[ -n ${opt[v]} ]]
 then
     rsync_extra_args="$rsync_extra_args -v"
-    echo "rsn ${conf[localDir]} -> ${conf[remoteDir]}"
+    echo "rsn ${conf[localDir]} -> $remote_dir_host"
 fi
-echo rsync -a --delete $rsync_extra_args "${conf[localDir]}" \
-    ${conf[user]}@${conf[host]}:${conf[remoteDir]}
-
+    ssh -i "${conf[sshKey]}" "${conf[user]}@${conf[host]}" \
+        mkdir -p "$remote_dir_host"
+    rsync -a --delete -e "ssh -i ${conf[sshKey]}" $rsync_extra_args "${conf[localDir]}/" \
+        ${conf[user]}@${conf[host]}:"$remote_dir_host"
