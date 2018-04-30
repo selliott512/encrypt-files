@@ -107,7 +107,13 @@ not readable." 1>&2
         fi
         # Allow for camel case keys, such as "myKey" or underscore usch as
         # "my_key".
-        key=$(tr -dc "0-9A-Z_a-z" <<< "$key")
+        key_forbidden=$(tr -d "0-9A-Z_a-z" <<< "$key")
+        if [[ -n $key_forbidden ]]
+        then
+            echo "Key \"$key\" in configuration file \"$conf_file\" contains \
+forbidden characters \"$key_forbidden\"." 1>&2
+            exit 1
+        fi
 
         value="${line#*=}"
         value="${value#"${value%%[![:space:]]*}"}" # Leading whitespace.
