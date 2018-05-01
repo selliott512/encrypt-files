@@ -34,7 +34,7 @@ conf_req_ar=(localDir remoteDir user host sshKey)
 conf_opt_ar=()
 
 # Command line options.
-opt_getopts="dhkruv"
+opt_getopts="v"
 
 # Functions
 
@@ -183,10 +183,11 @@ function opt_parse()
     declare -gr opt
 }
 
+# Display a usage statement. Keep in sync with $opt_getopts.
 function usage()
 {
     echo "Usage: $bname [-v]"
-    echo "    -v   Verbose."
+    echo "    -v         Verbose."
 }
 
 # Main entry

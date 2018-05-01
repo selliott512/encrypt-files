@@ -38,6 +38,7 @@ opt_getopts="dhkrt:uv"
 
 # Functions
 
+# Delete temporary files.
 function cleanup()
 {
     if [[ -n ${opt[k]} ]]
@@ -209,16 +210,17 @@ a row." 1>&2
     declare -gr opt
 }
 
+# Display a usage statement. Keep in sync with $opt_getopts.
 function usage()
 {
-opt_getopts="dhkrt:uv"
-
-    echo "Usage: $bname  [-d] [-h] [-k] [-r] [-t top-dir] [-u] [-v] source dest"
+    echo "Usage: $bname [-d] [-h] [-k] [-r] [-t top-dir] [-u] [-v]\
+source dest"
     echo "    -d         Decrypt instead of encrypt."
     echo "    -h         This help message."
     echo "    -k         Keep temporary files."
     echo "    -r         Relative paths (like rsync)."
     echo "    -t top-dir Use this as the top level directory when decrypting."
+    echo "    -u         Only update the destination if the source is newer."
     echo "    -v         Verbose."
     echo "    src        The source directory or file. Prefix with \"@\" for \
 file list."
