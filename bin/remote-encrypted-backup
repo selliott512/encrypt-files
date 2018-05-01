@@ -199,6 +199,8 @@ then
     efs_extra_args="$efs_extra_args -v"
     echo "efs @$files_file -> ${conf[localDir]}"
 fi
+# $efs_extra_args really should be word split to keep things simple.
+# shellcheck disable=SC2086
 if ! encrypt-files -u $efs_extra_args @"$files_file" "${conf[localDir]}"
 then
     echo "Could not encrypt-files" 1>&2
@@ -213,7 +215,11 @@ then
     rsync_extra_args="$rsync_extra_args -v"
     echo "rsn ${conf[localDir]} -> $remote_dir_host"
 fi
+    # mkdir is properly escaped.
+    # shellcheck disable=SC2029
     ssh -i "${conf[sshKey]}" "${conf[user]}@${conf[host]}" \
-        mkdir -p "$remote_dir_host"
+        "mkdir -p \"$remote_dir_host\""
+    # $rsync_extra_args really should be word split to keep things simple.
+    # shellcheck disable=SC2086
     rsync -a --delete -e "ssh -i ${conf[sshKey]}" $rsync_extra_args "${conf[localDir]}/" \
-        ${conf[user]}@${conf[host]}:"$remote_dir_host"
+        "${conf[user]}@${conf[host]}:$remote_dir_host"

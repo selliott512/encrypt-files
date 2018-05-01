@@ -269,6 +269,16 @@ then
     exit 1
 fi
 
+if [[ -n ${opt[t]} ]]
+then
+    if [[ ! (${opt[t]} == /*) || (${opt[t]} == */ ) ]]
+    then
+        echo "Option -t (\"${opt[t]}\") must start with a \"/\", but not end \
+with a \"/\"." 1>&2
+        exit 1
+    fi
+fi
+
 if [[ $src == @* ]]
 then
     # "src" is actually a list of source files each of which is a source top.
@@ -277,8 +287,8 @@ then
     src_prefix_len=0
     if [[ -n ${opt[t]} ]]
     then
-        echo "If \"-t\" is specified then there can only be a single source \
-top ." 1>&2
+        echo "If option \"-t\" (\"${opt[t]}\") is specified then there can \
+only be a single source top ." 1>&2
         exit 1
     fi
 else
@@ -290,12 +300,12 @@ else
     then
         # -t was specified, which probably means a subset of $src is being
         # decrypted.
-        if [[ $src == ${opt[t]}* ]]
+        if [[ $src == "${opt[t]}"* ]]
         then
             src_prefix_len=${#opt[t]}
         else
-            echo "If \"-t\" is specified then it must be a prefix of the \
-source directory." 2>&2
+            echo "If option \"-t\" (\"${opt[t]}\") is specified then it must \
+be a prefix of the source directory (\"$src\")." 2>&2
             exit 1
         fi
     fi
@@ -315,7 +325,7 @@ errors=0
 if ! find "${src_tops_ar[@]}" > "$src_list_file"
 then
     echo "One or more error finding \"${src_tops_ar[*]}\"." 1>&2
-    let errors++
+    (( errors++ ))
 fi
 
 if [[ -n ${opt[d]} ]]
@@ -338,7 +348,7 @@ do
     then
         echo "Source file \"$src_file\" does not start with \"/\". \
 Ignoring." 1>&2
-        let errors++
+        (( errors++ ))
     fi
 
     # Get rid of the tailing slash, if any.
@@ -375,7 +385,7 @@ Ignoring." 1>&2
         if ! mkdir -p "$dst_file"
         then
             echo "Could not make directory \"$dst_file\"." 1>&2
-            let errors++
+            (( errors++ ))
         fi
     elif [[ -f $src_file ]]
     then
@@ -403,21 +413,21 @@ Ignoring." 1>&2
             then
                 echo "Invalid header \"$hdr\" for source file \
 \"$src_file\"." 1>&2
-                let errors++
+                (( errors++ ))
                 continue
             fi
             if [[ ${hdr_ar[0]} != efs ]]
             then
                 echo "Unknown file type \"${hdr_ar[0]}\" in header \"$hdr\" \
 for source file \"$src_file\"." 1>&2
-                let errors++
+                (( errors++ ))
                 continue
             fi
             if [[ ${hdr_ar[1]} != 1 ]]
             then
                 echo "Unknown version \"${hdr_ar[1]}\" in header \"$hdr\" for \
 source file \"$src_file\"." 1>&2
-                let errors++
+                (( errors++ ))
                 continue
             fi
             calg="${hdr_ar[2]}"
@@ -433,7 +443,7 @@ source file \"$src_file\"." 1>&2
                         ;;
                     *)
                         echo "Unknown header option \"$hopt\". Ignoring." 1>&2
-                        let errors++
+                        (( errors++ ))
                         ;;
                 esac
             done
@@ -443,7 +453,7 @@ source file \"$src_file\"." 1>&2
             then
                 echo "Could not decrypt \"$src_file\" to \"$dst_file\"." 1>&2
                 rm -f "$dst_file"
-                let errors++
+                (( errors++ ))
                 continue
             fi
             tail -c 32 "$dst_file" > "$hash_expected_file"
@@ -452,7 +462,7 @@ source file \"$src_file\"." 1>&2
             if ! diff -q "$hash_actual_file" "$hash_expected_file" &> /dev/null
             then
                 echo "For \"$dst_file\" the hash did not match." 1>&2
-                let errors++
+                (( errors++ ))
             fi
         else
             # Encrypt
@@ -469,7 +479,7 @@ source file \"$src_file\"." 1>&2
                     fi
                 done
             fi
-            printf "%-31s\n" "efs 1 $alg ${conf[noSalt]:+ns}" > \
+            printf "%-31s\\n" "efs 1 $alg ${conf[noSalt]:+ns}" > \
                 "$dst_file"
             openssl dgst -sha256 -binary -out "$hash_actual_file" "$src_file"
             if ! cat "$src_file" "$hash_actual_file" | openssl "$alg" \
@@ -477,13 +487,13 @@ source file \"$src_file\"." 1>&2
             then
                 echo "Could not encrypt \"$src_file\" to \"$dst_file\"." 1>&2
                 rm -f "$dst_file"
-                let errors++
+                (( errors++ ))
             fi
         fi
     else
         echo "Source file \"$src_file\" is not a file or directory. \
 Ignoring." 1>&2
-        let errors++
+        (( errors++ ))
     fi
 done < "$src_list_file"
 
