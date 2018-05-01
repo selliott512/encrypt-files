@@ -23,7 +23,10 @@ bname="${0##*/}"
 files_file="/etc/$bname-files.conf"
 
 # Extra arguments for encrypt-files.
-efs_extra_args=""
+efs_extra_args_ar=()
+
+# Extra arguments for rsync.
+rsync_extra_args_ar=()
 
 # Configuration file name, required and optional keys.
 conf_file="/etc/$bname.conf"
@@ -196,14 +199,13 @@ opt_parse "$@"
 
 if [[ -n ${opt[v]} ]]
 then
-    efs_extra_args="$efs_extra_args -v"
+    efs_extra_args_ar+=("-v")
     echo "efs @$files_file -> ${conf[localDir]}"
 fi
-# $efs_extra_args really should be word split to keep things simple.
-# shellcheck disable=SC2086
-if ! encrypt-files -u $efs_extra_args @"$files_file" "${conf[localDir]}"
+if ! encrypt-files -u "${efs_extra_args_ar[@]}" "@$files_file" \
+        "${conf[localDir]}"
 then
-    echo "Could not encrypt-files" 1>&2
+    echo "Call to encrypt-files failed." 1>&2
     exit 1
 fi
 
@@ -212,14 +214,12 @@ remote_dir_host=${conf[remoteDir]}/"$HOSTNAME"
 
 if [[ -n ${opt[v]} ]]
 then
-    rsync_extra_args="$rsync_extra_args -v"
+    rsync_extra_args_ar+=("-v")
     echo "rsn ${conf[localDir]} -> $remote_dir_host"
 fi
     # mkdir is properly escaped.
     # shellcheck disable=SC2029
     ssh -i "${conf[sshKey]}" "${conf[user]}@${conf[host]}" \
         "mkdir -p \"$remote_dir_host\""
-    # $rsync_extra_args really should be word split to keep things simple.
-    # shellcheck disable=SC2086
-    rsync -a --delete -e "ssh -i ${conf[sshKey]}" $rsync_extra_args "${conf[localDir]}/" \
-        "${conf[user]}@${conf[host]}:$remote_dir_host"
+    rsync -a --delete -e "ssh -i ${conf[sshKey]}" "${rsync_extra_args_ar[@]}" \
+        "${conf[localDir]}/" "${conf[user]}@${conf[host]}:$remote_dir_host"
