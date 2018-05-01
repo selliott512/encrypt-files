@@ -120,7 +120,7 @@ forbidden characters \"$key_forbidden\"." 1>&2
         value="${value#"${value%%[![:space:]]*}"}" # Leading whitespace.
         value="${value%"${value##*[![:space:]]}"}" # Trailing whitespace.
 
-        if [[ (-z ${req_as[$key]}) && (-z ${opt_as[$key]}) ]]
+        if [[ (! -v req_as[$key]) && (! -v opt_as[$key]) ]]
         then
             echo "Key \"$key\" in configuration file \"$conf_file\" is not \
 allowed." 1>&2
@@ -133,7 +133,7 @@ allowed." 1>&2
     missing_ar=()
     for key in "${!req_as[@]}"
     do
-        if [[ -z ${conf[$key]} ]]
+        if [[ ! -v conf[$key] ]]
         then
             missing_ar+=("$key")
         fi
