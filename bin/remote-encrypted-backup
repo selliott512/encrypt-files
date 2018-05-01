@@ -134,8 +134,8 @@ function opt_parse()
 
     if [[ $opt_getopts == *::* ]]
     then
-        echo "\$opt_getots=\"$opt_getopts\" should have more than one \":\" in \
-a row." 1>&2
+        echo "\$opt_getots=\"$opt_getopts\" should not have more than one \
+\":\" in a row." 1>&2
         exit 1
     fi
 
