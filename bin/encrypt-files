@@ -34,7 +34,7 @@ conf_req_ar=(pass algDefault algLow)
 conf_opt_ar=(lowFiles noSalt)
 
 # Command line options.
-opt_getopts="dhkruv"
+opt_getopts="dhkrt:uv"
 
 # Functions
 
@@ -211,15 +211,18 @@ a row." 1>&2
 
 function usage()
 {
-    echo "Usage: $bname  [-d] [-h] [-k] [-r] [-v] source dest"
-    echo "    -d   Decrypt instead of encrypt."
-    echo "    -h   This help message."
-    echo "    -k   Keep temporary files."
-    echo "    -r   Relative paths (like rsync)."
-    echo "    -v   Verbose."
-    echo "    src  The source directory or file. Prefix with \"@\" for file \
-list."
-    echo "    dst  The destination directory."
+opt_getopts="dhkrt:uv"
+
+    echo "Usage: $bname  [-d] [-h] [-k] [-r] [-t top-dir] [-u] [-v] source dest"
+    echo "    -d         Decrypt instead of encrypt."
+    echo "    -h         This help message."
+    echo "    -k         Keep temporary files."
+    echo "    -r         Relative paths (like rsync)."
+    echo "    -t top-dir Use this as the top level directory when decrypting."
+    echo "    -v         Verbose."
+    echo "    src        The source directory or file. Prefix with \"@\" for \
+file list."
+    echo "    dst        The destination directory."
 }
 
 # Main entry
@@ -272,11 +275,30 @@ then
     # In this case there is no prefix common to all source directories.
     mapfile -t src_tops_ar < "${src:1}"
     src_prefix_len=0
+    if [[ -n ${opt[t]} ]]
+    then
+        echo "If \"-t\" is specified then there can only be a single source \
+top ." 1>&2
+        exit 1
+    fi
 else
     # There is a single source top directory, which is a common prefix to all
     # source directories found.
     src_tops_ar=("$src")
-    src_prefix_len="${#src}"
+    src_prefix_len=${#src}
+    if [[ -n ${opt[t]} ]]
+    then
+        # -t was specified, which probably means a subset of $src is being
+        # decrypted.
+        if [[ $src == ${opt[t]}* ]]
+        then
+            src_prefix_len=${#opt[t]}
+        else
+            echo "If \"-t\" is specified then it must be a prefix of the \
+source directory." 2>&2
+            exit 1
+        fi
+    fi
 fi
 
 # Create a temporary directory
