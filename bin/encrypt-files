@@ -534,7 +534,8 @@ done < "$src_list_file"
 
 if [[ -n ${opt[x]} ]]
 then
-    if ! find "$dst" > "$dst_list_file"
+    # tac so that parents are last so deletes work.
+    if ! find "$dst" | tac > "$dst_list_file"
     then
         echo "Error finding destination files in \"$dst\"." 1>&2
         (( ++errors ))
@@ -551,21 +552,27 @@ then
         fi
         if [[ ! -v rel_paths_as[$dst_file_rel] ]]
         then
-            if [[ -n ${opt[v]} ]]
-            then
-                echo "del \"$dst_file\""
-            fi
             if [[ -d $dst_file ]]
             then
-                if ! rmdir "$dst_file"
+                if rmdir --ignore-fail-on-non-empty "$dst_file"
                 then
+                    if [[ (-n ${opt[v]}) && ! (-d $dst_file) ]]
+                    then
+                        echo "del \"$dst_file\""
+                    fi
+                else
                     echo "Unable to remove extraneous directory \"$dst_file\"." 1>&2
                     (( ++errors ))
                 fi
             elif [[ -f $dst_file ]]
             then
-                if ! rm -f "$dst_file"
+                if rm -f "$dst_file"
                 then
+                    if [[ -n ${opt[v]} ]]
+                    then
+                        echo "del \"$dst_file\""
+                    fi
+                else
                     echo "Unable to remove extraneous file \"$dst_file\"." 1>&2
                     (( ++errors ))
                 fi
