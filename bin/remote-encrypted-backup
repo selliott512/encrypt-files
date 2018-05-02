@@ -34,7 +34,7 @@ conf_req_ar=(localDir remoteDir user host sshKey)
 conf_opt_ar=()
 
 # Command line options.
-opt_getopts="v"
+opt_getopts="hv"
 
 # Functions
 
@@ -198,29 +198,31 @@ conf_read
 # Parse command line options.
 opt_parse "$@"
 
+# Append the local hostname. This makes the backup clearer, and reduces the
+# risk of conflicts.
+local_dir_host=${conf[localDir]}/"$HOSTNAME"
+remote_dir_host=${conf[remoteDir]}/"$HOSTNAME"
+
 if [[ -n ${opt[v]} ]]
 then
     efs_extra_args_ar+=("-v")
-    echo "efs @$files_file -> ${conf[localDir]}"
+    echo "efs @$files_file -> $local_dir_host"
 fi
 if ! encrypt-files -rux "${efs_extra_args_ar[@]}" "@$files_file" \
-        "${conf[localDir]}"
+        "$local_dir_host"
 then
     echo "Call to encrypt-files failed." 1>&2
     exit 1
 fi
 
-# The remote directory with the current host added to it.
-remote_dir_host=${conf[remoteDir]}/"$HOSTNAME"
-
 if [[ -n ${opt[v]} ]]
 then
     rsync_extra_args_ar+=("-v")
-    echo "rsn ${conf[localDir]} -> $remote_dir_host"
+    echo "rsn $local_dir_host -> $remote_dir_host"
 fi
     # mkdir is properly escaped.
     # shellcheck disable=SC2029
     ssh -i "${conf[sshKey]}" "${conf[user]}@${conf[host]}" \
         "mkdir -p \"$remote_dir_host\""
     rsync -a --delete -e "ssh -i ${conf[sshKey]}" "${rsync_extra_args_ar[@]}" \
-        "${conf[localDir]}/" "${conf[user]}@${conf[host]}:$remote_dir_host"
+        "$local_dir_host/" "${conf[user]}@${conf[host]}:$remote_dir_host"
