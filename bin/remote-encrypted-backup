@@ -203,7 +203,7 @@ then
     efs_extra_args_ar+=("-v")
     echo "efs @$files_file -> ${conf[localDir]}"
 fi
-if ! encrypt-files -u "${efs_extra_args_ar[@]}" "@$files_file" \
+if ! encrypt-files -rux "${efs_extra_args_ar[@]}" "@$files_file" \
         "${conf[localDir]}"
 then
     echo "Call to encrypt-files failed." 1>&2

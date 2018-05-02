@@ -27,6 +27,7 @@ hash_actual_file="$tmp_dir/hash-actual"
 hash_expected_file="$tmp_dir/hash-expected"
 pass_file="$tmp_dir/pass"
 src_list_file="$tmp_dir/src-files"
+dst_list_file="$tmp_dir/dst-files"
 
 # Configuration file name, required and optional keys.
 conf_file="/etc/$bname.conf"
@@ -34,7 +35,7 @@ conf_req_ar=(pass algDefault algLow)
 conf_opt_ar=(lowFiles noSalt)
 
 # Command line options.
-opt_getopts="dhkrt:uv"
+opt_getopts="dhkrt:uvx"
 
 # Functions
 
@@ -213,7 +214,7 @@ a row." 1>&2
 # Display a usage statement. Keep in sync with $opt_getopts.
 function usage()
 {
-    echo "Usage: $bname [-d] [-h] [-k] [-r] [-t top-dir] [-u] [-v]\
+    echo "Usage: $bname [-d] [-h] [-k] [-r] [-t top-dir] [-u] [-v] [-x]\
 source dest"
     echo "    -d         Decrypt instead of encrypt."
     echo "    -h         This help message."
@@ -222,6 +223,8 @@ source dest"
     echo "    -t top-dir Use this as the top level directory when decrypting."
     echo "    -u         Only update the destination if the source is newer."
     echo "    -v         Verbose."
+    echo "    -x         Delete irrelevant files and directories in the \
+destination."
     echo "    src        The source directory or file. Prefix with \"@\" for \
 file list."
     echo "    dst        The destination directory."
@@ -326,8 +329,15 @@ errors=0
 
 if ! find "${src_tops_ar[@]}" > "$src_list_file"
 then
-    echo "One or more error finding \"${src_tops_ar[*]}\"." 1>&2
-    (( errors++ ))
+    echo "Error finding source top files in  \"${src_tops_ar[*]}\"." 1>&2
+    (( ++errors ))
+fi
+
+if [[ -n ${opt[x]} ]]
+then
+    # Keep track of the relative paths.
+    unset rel_paths_as
+    declare -A rel_paths_as
 fi
 
 if [[ -n ${opt[d]} ]]
@@ -350,7 +360,7 @@ do
     then
         echo "Source file \"$src_file\" does not start with \"/\". \
 Ignoring." 1>&2
-        (( errors++ ))
+        (( ++errors ))
     fi
 
     # Get rid of the tailing slash, if any.
@@ -367,35 +377,47 @@ Ignoring." 1>&2
         # Remove the common source prefix and then +1 for the leading slash.
         src_file_rel="${src_file:$src_prefix_len+1}"
     fi
+    # Get rid of the tailing slash, if any.
+    if [[ $src_file_rel == */ ]]
+    then
+        src_file_rel="${src_file_rel:0:-1}"
+    fi
 
     # Use the relative path of the file as part of the password.
     echo "${conf[pass]}|$src_file_rel" > "$pass_file"
 
-    # Get rid of the tailing slash, if any.
+    # The fully qualified destination path.
     dst_file="$dst/$src_file_rel"
-    if [[ $dst_file == */ ]]
-    then
-        dst_file="${dst_file:0:-1}"
-    fi
 
     if [[ -d $src_file ]]
     then
+        # A directory.
         if [[ -n ${opt[v]} ]]
         then
             echo "dir \"$dst_file\""
         fi
-        if ! mkdir -p "$dst_file"
+        if mkdir -p "$dst_file"
         then
+            if [[ (-n ${opt[x]}) && (-n $src_file_rel) ]]
+            then
+                rel_paths_as["$src_file_rel"]="d"
+            fi
+        else
             echo "Could not make directory \"$dst_file\"." 1>&2
-            (( errors++ ))
+            (( ++errors ))
         fi
     elif [[ -f $src_file ]]
     then
+        # An ordinary file.
         if [[ (-n ${opt[u]}) && ! ($src_file -nt $dst_file) ]]
         then
             if [[ -n ${opt[v]} ]]
             then
                 echo "old \"$src_file\""
+            fi
+            if [[ -n ${opt[x]} ]]
+            then
+                rel_paths_as["$src_file_rel"]="f"
             fi
             continue
         fi
@@ -415,21 +437,21 @@ Ignoring." 1>&2
             then
                 echo "Invalid header \"$hdr\" for source file \
 \"$src_file\"." 1>&2
-                (( errors++ ))
+                (( ++errors ))
                 continue
             fi
             if [[ ${hdr_ar[0]} != efs ]]
             then
                 echo "Unknown file type \"${hdr_ar[0]}\" in header \"$hdr\" \
 for source file \"$src_file\"." 1>&2
-                (( errors++ ))
+                (( ++errors ))
                 continue
             fi
             if [[ ${hdr_ar[1]} != 1 ]]
             then
                 echo "Unknown version \"${hdr_ar[1]}\" in header \"$hdr\" for \
 source file \"$src_file\"." 1>&2
-                (( errors++ ))
+                (( ++errors ))
                 continue
             fi
             calg="${hdr_ar[2]}"
@@ -445,7 +467,7 @@ source file \"$src_file\"." 1>&2
                         ;;
                     *)
                         echo "Unknown header option \"$hopt\". Ignoring." 1>&2
-                        (( errors++ ))
+                        (( ++errors ))
                         ;;
                 esac
             done
@@ -455,16 +477,22 @@ source file \"$src_file\"." 1>&2
             then
                 echo "Could not decrypt \"$src_file\" to \"$dst_file\"." 1>&2
                 rm -f "$dst_file"
-                (( errors++ ))
+                (( ++errors ))
                 continue
             fi
             tail -c 32 "$dst_file" > "$hash_expected_file"
             truncate -cs -32 "$dst_file"
             openssl dgst -sha256 -binary -out "$hash_actual_file" "$dst_file"
-            if ! diff -q "$hash_actual_file" "$hash_expected_file" &> /dev/null
+            if diff -q "$hash_actual_file" "$hash_expected_file" &> /dev/null
             then
+                if [[ -n ${opt[x]} ]]
+                then
+                    rel_paths_as["$src_file_rel"]="f"
+                fi
+            else
                 echo "For \"$dst_file\" the hash did not match." 1>&2
-                (( errors++ ))
+                rm -f "$dst_file"
+                (( ++errors ))
             fi
         else
             # Encrypt
@@ -484,20 +512,70 @@ source file \"$src_file\"." 1>&2
             printf "%-31s\\n" "efs 1 $alg ${conf[noSalt]:+ns}" > \
                 "$dst_file"
             openssl dgst -sha256 -binary -out "$hash_actual_file" "$src_file"
-            if ! cat "$src_file" "$hash_actual_file" | openssl "$alg" \
+            if cat "$src_file" "$hash_actual_file" | openssl "$alg" \
                 ${conf[noSalt]:+-nosalt} -pass file:"$pass_file" >> "$dst_file"
             then
+                if [[ -n ${opt[x]} ]]
+                then
+                    rel_paths_as["$src_file_rel"]="f"
+                fi
+            else
                 echo "Could not encrypt \"$src_file\" to \"$dst_file\"." 1>&2
                 rm -f "$dst_file"
-                (( errors++ ))
+                (( ++errors ))
             fi
         fi
     else
         echo "Source file \"$src_file\" is not a file or directory. \
 Ignoring." 1>&2
-        (( errors++ ))
+        (( ++errors ))
     fi
 done < "$src_list_file"
+
+if [[ -n ${opt[x]} ]]
+then
+    if ! find "$dst" > "$dst_list_file"
+    then
+        echo "Error finding destination files in \"$dst\"." 1>&2
+        (( ++errors ))
+    fi
+
+    while read -r dst_file
+    do
+        # Remove the common source prefix and then +1 for the leading slash.
+        dst_file_rel="${dst_file:${#dst}+1}"
+        if [[ ((-n ${opt[r]}) && (${#dst_file_rel}+1 -lt ${#dst})) \
+            || (-z $dst_file_rel) ]]
+        then
+            continue
+        fi
+        if [[ ! -v rel_paths_as[$dst_file_rel] ]]
+        then
+            if [[ -n ${opt[v]} ]]
+            then
+                echo "del \"$dst_file\""
+            fi
+            if [[ -d $dst_file ]]
+            then
+                if ! rmdir "$dst_file"
+                then
+                    echo "Unable to remove extraneous directory \"$dst_file\"." 1>&2
+                    (( ++errors ))
+                fi
+            elif [[ -f $dst_file ]]
+            then
+                if ! rm -f "$dst_file"
+                then
+                    echo "Unable to remove extraneous file \"$dst_file\"." 1>&2
+                    (( ++errors ))
+                fi
+            else
+                echo "Unable to remove extraneous unknown \"$dst_file\"." 1>&2
+                (( ++errors ))
+            fi
+        fi
+    done < "$dst_list_file"
+fi
 
 if [[ $errors -gt 0 ]]
 then
