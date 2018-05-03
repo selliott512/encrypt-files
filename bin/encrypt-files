@@ -528,7 +528,8 @@ source file \"$src_file\"." 1>&2
     else
         echo "Source file \"$src_file\" is not a file or directory. \
 Ignoring." 1>&2
-        (( ++errors ))
+        # Don't increment the error count since it's probably just a broken
+        # symlink.
     fi
 done < "$src_list_file"
 
