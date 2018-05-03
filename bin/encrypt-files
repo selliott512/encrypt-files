@@ -549,6 +549,8 @@ then
         then
             continue
         fi
+        # I don't understand this warning. There is no "range".
+        # shellcheck disable=SC2102
         if [[ ! -v rel_paths_as[$dst_file_rel] ]]
         then
             if [[ -d $dst_file ]]
