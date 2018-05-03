@@ -545,8 +545,7 @@ then
     do
         # Remove the common source prefix and then +1 for the leading slash.
         dst_file_rel="${dst_file:${#dst}+1}"
-        if [[ ((-n ${opt[r]}) && (${#dst_file_rel}+1 -lt ${#dst})) \
-            || (-z $dst_file_rel) ]]
+        if [[ -z $dst_file_rel ]]
         then
             continue
         fi
