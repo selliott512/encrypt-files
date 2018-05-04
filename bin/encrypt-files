@@ -392,8 +392,8 @@ Ignoring." 1>&2
     if [[ -L $src_file ]]
     then
         # A symbolic link.
-        src_target=$(readlink $src_file)
-        dst_target=$(readlink $dst_file) || true # null if ordinary file
+        src_target=$(readlink $src_file)         # never null for symlinks
+        dst_target=$(readlink $dst_file) || true # null if non-symlink
         if [[ $src_target == $dst_target ]]
         then
             if [[ -n ${opt[v]} ]]
@@ -419,7 +419,9 @@ Ignoring." 1>&2
                 (( ++errors ))
                 continue
             fi
-            if ln -sf "$src_target" "$dst_file"
+            # Attempt to remove destination first for security reasons.
+            rm -f "$dst_file"  # fails and exits for directories
+            if ln -s "$src_target" "$dst_file"
             then
                 if [[ (-n ${opt[x]}) && (-n $src_file_rel) ]]
                 then
@@ -467,7 +469,6 @@ Ignoring." 1>&2
         then
             echo "$action \"$src_file\" -> \"$dst_file\""
         fi
-
         if [[ -n ${opt[d]} ]]
         then
             # Decrypt
@@ -514,6 +515,8 @@ source file \"$src_file\"." 1>&2
                 esac
             done
 
+            # Attempt to remove destination first for security reasons.
+            rm -f "$dst_file"  # fails and exits for directories
             if ! tail -c +33 "$src_file" | openssl "$calg" -d \
                 ${do_nosalt:+-nosalt} -pass "file:$pass_file" -out "$dst_file"
             then
@@ -551,6 +554,8 @@ source file \"$src_file\"." 1>&2
                     fi
                 done
             fi
+            # Attempt to remove destination first for security reasons.
+            rm -f "$dst_file"  # fails and exits for directories
             printf "%-31s\\n" "efs 1 $alg ${conf[noSalt]:+ns}" > \
                 "$dst_file"
             openssl dgst -sha256 -binary -out "$hash_actual_file" "$src_file"
