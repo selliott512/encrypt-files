@@ -415,7 +415,7 @@ Ignoring." 1>&2
             if [[ -d $dst_file ]]
             then
                 echo "Could not make symlink \"$dst_file\" to target \
-    \"$target\" because there's a directory at that location." 1>&2
+\"$src_target\" because there's a directory at that location." 1>&2
                 (( ++errors ))
                 continue
             fi
@@ -429,7 +429,7 @@ Ignoring." 1>&2
                 fi
             else
                 echo "Could not make symlink \"$dst_file\" to target \
-    \"$target\"." 1>&2
+\"$src_target\"." 1>&2
                 (( ++errors ))
             fi
         fi
