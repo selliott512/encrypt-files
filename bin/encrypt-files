@@ -389,7 +389,49 @@ Ignoring." 1>&2
     # The fully qualified destination path.
     dst_file="$dst/$src_file_rel"
 
-    if [[ -d $src_file ]]
+    if [[ -L $src_file ]]
+    then
+        # A symbolic link.
+        src_target=$(readlink $src_file)
+        dst_target=$(readlink $dst_file) || true # null if ordinary file
+        if [[ $src_target == $dst_target ]]
+        then
+            if [[ -n ${opt[v]} ]]
+            then
+                echo "old \"$src_file\""
+            fi
+            if [[ -n ${opt[x]} ]]
+            then
+                rel_paths_as["$src_file_rel"]="l"
+            fi
+        else
+            # The destination will be overwritten if it's a link to a different
+            # target, or if it's an ordinary file. If it's a directory then
+            # that's an error.
+            if [[ -n ${opt[v]} ]]
+            then
+                echo "lnk \"$dst_file\""
+            fi
+            if [[ -d $dst_file ]]
+            then
+                echo "Could not make symlink \"$dst_file\" to target \
+    \"$target\" because there's a directory at that location." 1>&2
+                (( ++errors ))
+                continue
+            fi
+            if ln -sf "$src_target" "$dst_file"
+            then
+                if [[ (-n ${opt[x]}) && (-n $src_file_rel) ]]
+                then
+                    rel_paths_as["$src_file_rel"]="l"
+                fi
+            else
+                echo "Could not make symlink \"$dst_file\" to target \
+    \"$target\"." 1>&2
+                (( ++errors ))
+            fi
+        fi
+    elif [[ -d $src_file ]]
     then
         # A directory.
         if [[ -n ${opt[v]} ]]
@@ -526,10 +568,9 @@ source file \"$src_file\"." 1>&2
             fi
         fi
     else
-        echo "Source file \"$src_file\" is not a file or directory. \
-Ignoring." 1>&2
-        # Don't increment the error count since it's probably just a broken
-        # symlink.
+        # Is it a device file?
+        echo "Source file \"$src_file\" has an unknown type." 1>&2
+        (( ++errors ))
     fi
 done < "$src_list_file"
 
@@ -554,7 +595,19 @@ then
         # shellcheck disable=SC2102
         if [[ ! -v rel_paths_as[$dst_file_rel] ]]
         then
-            if [[ -d $dst_file ]]
+            if [[ -L $dst_file ]]
+            then
+                if rm -f "$dst_file"
+                then
+                    if [[ -n ${opt[v]} ]]
+                    then
+                        echo "del \"$dst_file\""
+                    fi
+                else
+                    echo "Unable to remove extraneous symlink \"$dst_file\"." 1>&2
+                    (( ++errors ))
+                fi
+            elif [[ -d $dst_file ]]
             then
                 if rmdir --ignore-fail-on-non-empty "$dst_file"
                 then
