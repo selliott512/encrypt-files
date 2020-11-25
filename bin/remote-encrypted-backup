@@ -220,9 +220,10 @@ then
     rsync_extra_args_ar+=("-v")
     echo "rsn $local_dir_host -> $remote_dir_host"
 fi
-    # mkdir is properly escaped.
-    # shellcheck disable=SC2029
-    ssh -i "${conf[sshKey]}" "${conf[user]}@${conf[host]}" \
-        "mkdir -p \"$remote_dir_host\""
-    rsync -a --delete -e "ssh -i ${conf[sshKey]}" "${rsync_extra_args_ar[@]}" \
-        "$local_dir_host/" "${conf[user]}@${conf[host]}:$remote_dir_host"
+
+# mkdir is properly escaped.
+# shellcheck disable=SC2029
+ssh -i "${conf[sshKey]}" "${conf[user]}@${conf[host]}" \
+    "mkdir -p \"$remote_dir_host\""
+rsync -a --delete -e "ssh -i ${conf[sshKey]}" "${rsync_extra_args_ar[@]}" \
+    "$local_dir_host/" "${conf[user]}@${conf[host]}:$remote_dir_host"

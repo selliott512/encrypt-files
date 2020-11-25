@@ -518,7 +518,8 @@ source file \"$src_file\"." 1>&2
             # Attempt to remove destination first for security reasons.
             rm -f "$dst_file"  # fails and exits for directories
             if ! tail -c +33 "$src_file" | openssl "$calg" -d \
-                ${do_nosalt:+-nosalt} -pass "file:$pass_file" -out "$dst_file"
+                ${do_nosalt:+-nosalt} -pbkdf2 -iter 2 -pass "file:$pass_file" \
+		-out "$dst_file"
             then
                 echo "Could not decrypt \"$src_file\" to \"$dst_file\"." 1>&2
                 rm -f "$dst_file"
@@ -560,7 +561,8 @@ source file \"$src_file\"." 1>&2
                 "$dst_file"
             openssl dgst -sha256 -binary -out "$hash_actual_file" "$src_file"
             if cat "$src_file" "$hash_actual_file" | openssl "$alg" \
-                ${conf[noSalt]:+-nosalt} -pass "file:$pass_file" >> "$dst_file"
+                ${conf[noSalt]:+-nosalt} -pbkdf2 -iter 2 -pass \
+		"file:$pass_file" >> "$dst_file"
             then
                 if [[ -n ${opt[x]} ]]
                 then
