@@ -214,7 +214,7 @@ a row." 1>&2
 # Display a usage statement. Keep in sync with $opt_getopts.
 function usage()
 {
-    echo "Usage: $bname [-d] [-h] [-k] [-r] [-t top-dir] [-u] [-v] [-x]\
+    echo "Usage: $bname [-d] [-h] [-k] [-r] [-t top-dir] [-u] [-v] [-x] \
 source dest"
     echo "    -d         Decrypt instead of encrypt."
     echo "    -h         This help message."
